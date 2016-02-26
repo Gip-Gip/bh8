@@ -49,6 +49,7 @@ enum retval {
     err_fwrite,
     err_fread,
     err_randerr,
+    err_invchar,
     err_alloc
 };
 
@@ -100,6 +101,7 @@ DONE!\n\
 #define MSG_LONGRAND "WARNING: -l given! Prepare to wait forever!\n"
 #define MSG_URAND "Using /dev/urandom\n"
 #define MSG_BADRAND "WARNING: No random device detected! Using math.h rand\n"
+#define MSG_INVCHAR "ERROR: Password contains a character that is not a #0-7\n"
 
 #define ARG_HELP "-h"
 #define ARG_IN "-i"
@@ -348,6 +350,13 @@ int main(int argc, char *argv[])
         printf("%s%s%s\n", in, MSG_TOD, out);
         while(!feof(inFile))
         {
+            if(*(password + passchar) > '7' || *(password + passchar) < '0')
+            {
+                printf("%s%s", MSG_INVCHAR, MSG_DONE);
+                closeAll();
+                return err_invchar;
+            }
+
             if(fread(&inBuff, sizeof(inBuff), 1, inFile) != 1 && !feof(inFile))
             {
                 printf("%s%s", MSG_FREAD, MSG_DONE);
@@ -388,6 +397,13 @@ int main(int argc, char *argv[])
         loopn = eight + 1;
         while(!feof(inFile))
         {
+            if(*(password + passchar) > '7' || *(password + passchar) < '0')
+            {
+                printf("%s%s", MSG_INVCHAR, MSG_DONE);
+                closeAll();
+                return err_invchar;
+            }
+
             if(loopn > eight)
             {
                 if(fread(&inBuff, sizeof(inBuff), 1, inFile) != 1 &&
