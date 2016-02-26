@@ -18,7 +18,8 @@ PERFORMANCE OF THIS SOFTWARE.
 
 #include <stdio.h>
 #include <string.h>
-#include <math.h>
+#include <stdlib.h>
+#include <time.h>
 
 typedef enum {
     false,
@@ -100,8 +101,8 @@ DONE!\n\
 #define MSG_RANDERR "ERROR: Could not read random device!\n"
 #define MSG_LONGRAND "WARNING: -l given! Prepare to wait forever!\n"
 #define MSG_URAND "Using /dev/urandom\n"
-#define MSG_BADRAND "WARNING: No random device detected! Using math.h rand\n"
-#define MSG_INVCHAR "ERROR: Password contains a character that is not a #0-7\n"
+#define MSG_BADRAND "WARNING: No random device detected! Using rand\n"
+#define MSG_BASE8EQU "The base8 password is "
 
 #define ARG_HELP "-h"
 #define ARG_IN "-i"
@@ -150,36 +151,25 @@ bool getBit(char byte, int bit)
     return 0;
 }
 
-char setBit(char byte, int bit)
+char *strToBase8(char *str)
 {
-    switch(bit)
+    char *ret = calloc(strlen(str) * 3 + 1, sizeof(char));
+    char *retchar = ret;
+
+    if(ret == NULL) return NULL;
+
+    while(*str)
     {
-        case one:
-            if(!(byte & 1)) return byte += 1;
-            break;
-        case two:
-            if(!(byte & 2)) return byte += 2;
-            break;
-        case three:
-            if(!(byte & 4)) return byte += 4;
-            break;
-        case four:
-            if(!(byte & 8)) return byte += 8;
-            break;
-        case five:
-            if(!(byte & 16)) return byte += 16;
-            break;
-        case six:
-            if(!(byte & 32)) return byte += 32;
-            break;
-        case seven:
-            if(!(byte & 64)) return byte += 64;
-            break;
-        case eight:
-            if(!(byte & 128)) return byte += 128;
-            break;
+        *retchar = (*str & 1) + (*str & 2) + (*str & 4) + '0';
+        *(retchar + 1) =
+            ((*str & 8)/8) + ((*str & 16)/8) + ((*str & 32)/8) + '0';
+        *(retchar + 2) =
+            ((*str & 32)/32) + ((*str & 64)/32) + ((*str & 128)/32) + '0';
+        retchar += 3;
+        str++;
     }
-    return byte;
+
+    return ret;
 }
 
 void closeAll()
@@ -268,11 +258,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(decrypt == true && verbose == true)
-    {
-        printf(MSG_DECRYPTING);
-    }
-
     if(in == NULL)
     {
         printf("%s%s%s", MSG_NOIN, MSG_HELP, MSG_DONE);
@@ -284,6 +269,14 @@ int main(int argc, char *argv[])
         printf("%s%s%s", MSG_NOPASS, MSG_HELP, MSG_DONE);
         return err_nopass;
     }
+
+    if(!(password = strToBase8(password)))
+    {
+        printf("%s%s", MSG_ALLOCERR, MSG_DONE);
+        return err_alloc;
+    }
+
+    if(verbose == true) printf("%s%s\n", MSG_BASE8EQU, password);
 
     if(out == NULL)
     {
@@ -340,6 +333,7 @@ int main(int argc, char *argv[])
     else
     {
         printf(MSG_BADRAND);
+        srand(time(NULL));
     }
 
     fseek(inFile, 0, SEEK_SET);
@@ -350,13 +344,6 @@ int main(int argc, char *argv[])
         printf("%s%s%s\n", in, MSG_TOD, out);
         while(!feof(inFile))
         {
-            if(*(password + passchar) > '7' || *(password + passchar) < '0')
-            {
-                printf("%s%s", MSG_INVCHAR, MSG_DONE);
-                closeAll();
-                return err_invchar;
-            }
-
             if(fread(&inBuff, sizeof(inBuff), 1, inFile) != 1 && !feof(inFile))
             {
                 printf("%s%s", MSG_FREAD, MSG_DONE);
@@ -397,13 +384,6 @@ int main(int argc, char *argv[])
         loopn = eight + 1;
         while(!feof(inFile))
         {
-            if(*(password + passchar) > '7' || *(password + passchar) < '0')
-            {
-                printf("%s%s", MSG_INVCHAR, MSG_DONE);
-                closeAll();
-                return err_invchar;
-            }
-
             if(loopn > eight)
             {
                 if(fread(&inBuff, sizeof(inBuff), 1, inFile) != 1 &&
