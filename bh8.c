@@ -17,8 +17,8 @@ PERFORMANCE OF THIS SOFTWARE.
 */
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 typedef enum {
@@ -26,7 +26,7 @@ typedef enum {
     true
 } bool;
 
-enum bitnum {
+enum {
     one,
     two,
     three,
@@ -37,7 +37,7 @@ enum bitnum {
     eight
 };
 
-enum retval {
+enum {
     none,
     err_unknown,
     err_noargs,
@@ -50,34 +50,30 @@ enum retval {
     err_fwrite,
     err_fread,
     err_randerr,
-    err_invchar,
+    err_norand,
     err_alloc
 };
 
 #define BYTEMV 255
 
 #define MSG_SPASH "\n\
-bh8 v1.2016!\n\
+bh8 v2.2016!\n\
 ============\n\
 \n\
 "
 #define MSG_HELP "\n\
 USAGE:\n\
 \n\
-bh8 -p [password] -i [infile] (optional arguments)\n\
+bh8 -i [infile] (optional arguments)\n\
 \n\
 ARGUMENTS:\n\
 \n\
 -d = decrypt the infile\n\
-\n\
 -h = show this message and exit\n\
-\n\
 -l = use /dev/random, if available(very slow)\n\
-\n\
 -o [outfile] = specify a outfile\n\
-\n\
+-p [password] = specify the password to use\n\
 -v = give pointless(debugging) messages\n\
-\n\
 -y = overwrite files without asking\n\
 \n\
 "
@@ -85,9 +81,9 @@ ARGUMENTS:\n\
 =====\n\
 DONE!\n\
 "
+#define MSG_GIVEPASS "Password:"
 #define MSG_DECRYPTING "Decrypting!\n"
 #define MSG_NOIN "ERROR: No input file given!\n"
-#define MSG_NOPASS "ERROR: No password given!\n"
 #define MSG_INNOTREAL "ERROR: Specified infile does not exist!\n"
 #define MSG_ALLOCERR "ERROR: Could not allocate memory\n"
 #define MSG_CANNOTWTI "ERROR: You cannot write to infile(yet)!\n"
@@ -101,7 +97,7 @@ DONE!\n\
 #define MSG_RANDERR "ERROR: Could not read random device!\n"
 #define MSG_LONGRAND "WARNING: -l given! Prepare to wait forever!\n"
 #define MSG_URAND "Using /dev/urandom\n"
-#define MSG_BADRAND "WARNING: No random device detected! Using rand\n"
+#define MSG_NORAND "ERROR: No random device detected!\n"
 #define MSG_BASE8EQU "The base8 password is "
 
 #define ARG_HELP "-h"
@@ -172,6 +168,23 @@ char *strToBase8(char *str)
     return ret;
 }
 
+char *fmakes(FILE *__file)
+{
+    char *rt = calloc(1, sizeof(char));
+    int rtsz = 0;
+    char bf = 0;
+
+    while(!feof(__file) && fread(&bf, sizeof(char), sizeof(bf), __file) && bf != '\n')
+    {
+        rt = realloc(rt, rtsz + 2);
+        rt[rtsz] = bf;
+        rt[rtsz + 1] = 0;
+        rtsz = strlen(rt);
+    }
+
+    return rt;
+}
+
 void closeAll()
 {
     if(outFile != NULL) fclose(outFile);
@@ -208,13 +221,13 @@ int main(int argc, char *argv[])
 
     printf(MSG_SPASH);
 
-    if(argc == 1)
+    if(argc <= 1)
     {
         printf("%s%s", MSG_HELP, MSG_DONE);
         return err_noargs;
     }
 
-    while(argn--)
+    while((argn--) > 1)
     {
         if(!strcmp(argv[argn], ARG_HELP))
         {
@@ -222,19 +235,19 @@ int main(int argc, char *argv[])
             return err_helpGiven;
         }
 
-        else if(!strcmp(argv[argn], ARG_IN))
+        else if(!strcmp(argv[argn - 1], ARG_IN))
         {
-            in = argv[argn + 1];
+            in = argv[argn];
         }
 
-        else if(!strcmp(argv[argn], ARG_PASS))
+        else if(!strcmp(argv[argn - 1], ARG_PASS))
         {
-            password = argv[argn + 1];
+            password = argv[argn];
         }
 
-        else if(!strcmp(argv[argn], ARG_OUT))
+        else if(!strcmp(argv[argn - 1], ARG_OUT))
         {
-            out = argv[argn + 1];
+            out = argv[argn];
         }
 
         else if(!strcmp(argv[argn], ARG_DECRYPT))
@@ -266,8 +279,8 @@ int main(int argc, char *argv[])
 
     if(password == NULL)
     {
-        printf("%s%s%s", MSG_NOPASS, MSG_HELP, MSG_DONE);
-        return err_nopass;
+        printf(MSG_GIVEPASS);
+        password = fmakes(stdin);
     }
 
     if(!(password = strToBase8(password)))
@@ -322,20 +335,6 @@ int main(int argc, char *argv[])
         return err_outcant;
     }
 
-    if(longrand == true && (randomFile = fopen("/dev/random", "rb")))
-    {
-        printf(MSG_LONGRAND);
-    }
-    else if((randomFile = fopen("/dev/urandom", "rb")))
-    {
-        if(verbose == true) printf(MSG_URAND);
-    }
-    else
-    {
-        printf(MSG_BADRAND);
-        srand(time(NULL));
-    }
-
     fseek(inFile, 0, SEEK_SET);
     fseek(outFile, 0, SEEK_SET);
 
@@ -380,6 +379,20 @@ int main(int argc, char *argv[])
 
     else
     {
+        if(longrand == true && (randomFile = fopen("/dev/random", "rb")))
+        {
+            printf(MSG_LONGRAND);
+        }
+        else if((randomFile = fopen("/dev/urandom", "rb")))
+        {
+            if(verbose == true) printf(MSG_URAND);
+        }
+        else
+        {
+            printf("%s%s", MSG_NORAND, MSG_DONE);
+        return err_norand;
+        }
+
         printf("%s%s%s\n", in, MSG_TOE, out);
         loopn = eight + 1;
         while(!feof(inFile))
@@ -396,7 +409,7 @@ int main(int argc, char *argv[])
                 loopn = 0;
             }
 
-            if(randomFile == NULL) outBuff = rand() % BYTEMV;
+            if(randomFile == NULL) outBuff = rand();
             else if(fread(&outBuff, sizeof(char), 1, randomFile) != 1)
             {
                 printf("%s%s", MSG_RANDERR, MSG_DONE);
